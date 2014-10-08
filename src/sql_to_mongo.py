@@ -113,13 +113,13 @@ def storeInMongoTableDrivers(mongoDB,tableName,sqlData,sqlColumns):
 		for col in range(1,len(columns)):
 			if (columns[col] == "dob"):
 				dob = sqlRow[columns[col]]
-				sqlRow[columns[col]] = datetime.datetime(dob.year,dob.month,dob.day)
+				if (dob != None):
+					sqlRow[columns[col]] = datetime.datetime(dob.year,dob.month,dob.day)
 			if (isinstance(sqlRow[columns[col]],basestring)):
-				print ord(sqlRow[columns[col]][1])
-				str = unicode(sqlRow[columns[col]],"utf-8")
+				str = sqlRow[columns[col]].decode('iso-8859-1').encode('utf8')
 				sqlRow[columns[col]] = str
 			doc[columns[col]] = sqlRow[columns[col]]
-		mongoDB.statuses.insert(doc)		
+		mongoDB.drivers.insert(doc)		
 			
 ########################################################################################
 #	PYTHON CONFIGURATION
