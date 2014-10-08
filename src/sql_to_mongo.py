@@ -41,14 +41,8 @@ allSQLTableNames = ["circuits",
 
 def main():
 	print("\n## STARTING PROGRAM ##\n")
-	
-	# Retrieve SQL Data
 	[sqlData,sqlColumns] = retrieveSQLData()
-	
-	# Connect to MongoDB
-	mongoDB = connectToMongo()
-	storeInMongoTableStatuses(mongoDB,"status",sqlData,sqlColumns)
-	storeInMongoTableDrivers(mongoDB,"drivers",sqlData,sqlColumns)
+	storeInMongo(sqlData,sqlColumns)	
 
 ########################################################################################
 #	SQL FUNCTIONS
@@ -92,12 +86,17 @@ def getSQLTableData(sqlCursor, tableName, toPrint):
 #	MONGODB FUNCTIONS
 ########################################################################################
 
-def connectToMongo():
+def storeInMongo(sqlData,sqlColumns):
 	print("## CONNECTING TO MONGO DATABASE %s ON PORT %d##\n"%(mongoHost,mongoPort))
 	client = pymongo.MongoClient(mongoHost, mongoPort)
 	client.drop_database('f1_db')
 	db = client.f1_db
-	return db
+	storeInMongoTableStatuses(db,"status",sqlData,sqlColumns)
+	storeInMongoTableDrivers(db,"drivers",sqlData,sqlColumns)
+	storeInMongoTableCircuits(db,"circuits",sqlData,sqlColumns)
+	storeInMongoTableConstructors(db,"constructors",sqlData,sqlColumns)
+	storeInMongoTableSeasons(db,"seasons",sqlData,sqlColumns)
+	client.close()
 	
 def storeInMongoTableStatuses(mongoDB,tableName,sqlData,sqlColumns):
 	print("## STORING %s DATA TO MONGO DATABASE ##\n"%(tableName))
@@ -119,7 +118,56 @@ def storeInMongoTableDrivers(mongoDB,tableName,sqlData,sqlColumns):
 				str = sqlRow[columns[col]].decode('iso-8859-1').encode('utf8')
 				sqlRow[columns[col]] = str
 			doc[columns[col]] = sqlRow[columns[col]]
-		mongoDB.drivers.insert(doc)		
+		mongoDB.drivers.insert(doc)
+		
+def storeInMongoTableCircuits(mongoDB,tableName,sqlData,sqlColumns):
+	print("## STORING %s DATA TO MONGO DATABASE ##\n"%(tableName))
+	columns = sqlColumns[tableName]
+	for sqlRow in sqlData[tableName]:
+		doc = {}
+		for col in range(1,len(columns)):
+			column = columns[col]
+			if (columns[col] == "lat"):
+				column = "latitude"
+			if (columns[col] == "lng"):
+				column = "longitude"
+			if (columns[col] == "alt"):
+				column = "altitude"
+				if (sqlRow[columns[col]] != None):
+					data = int(sqlRow[columns[col]])
+					sqlRow[columns[col]] = data
+			if (isinstance(sqlRow[columns[col]],basestring)):
+				str = sqlRow[columns[col]].decode('iso-8859-1').encode('utf8')
+				sqlRow[columns[col]] = str
+			doc[column] = sqlRow[columns[col]]
+		mongoDB.circuits.insert(doc)
+
+def storeInMongoTableConstructors(mongoDB,tableName,sqlData,sqlColumns):
+	print("## STORING %s DATA TO MONGO DATABASE ##\n"%(tableName))
+	columns = sqlColumns[tableName]
+	for sqlRow in sqlData[tableName]:
+		doc = {}
+		for col in range(1,len(columns)):
+			if (isinstance(sqlRow[columns[col]],basestring)):
+				str = sqlRow[columns[col]].decode('iso-8859-1').encode('utf8')
+				sqlRow[columns[col]] = str
+			doc[columns[col]] = sqlRow[columns[col]]
+		mongoDB.constructors.insert(doc)
+
+def storeInMongoTableSeasons(mongoDB,tableName,sqlData,sqlColumns):
+	print("## STORING %s DATA TO MONGO DATABASE ##\n"%(tableName))
+	columns = sqlColumns[tableName]
+	for sqlRow in sqlData[tableName]:
+		doc = {}
+		for col in range(0,len(columns)):
+			if (columns[col] == "year"):
+				data = int(sqlRow[columns[col]])
+				sqlRow[columns[col]] = data
+			if (isinstance(sqlRow[columns[col]],basestring)):
+				str = sqlRow[columns[col]].decode('iso-8859-1').encode('utf8')
+				sqlRow[columns[col]] = str
+			doc[columns[col]] = sqlRow[columns[col]]
+		mongoDB.seasons.insert(doc)	
 			
 ########################################################################################
 #	PYTHON CONFIGURATION
