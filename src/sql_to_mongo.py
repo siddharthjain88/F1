@@ -96,6 +96,7 @@ def storeInMongo(sqlData,sqlColumns):
 	storeInMongoTableCircuits(db,"circuits",sqlData,sqlColumns)
 	storeInMongoTableConstructors(db,"constructors",sqlData,sqlColumns)
 	storeInMongoTableSeasons(db,"seasons",sqlData,sqlColumns)
+	storeInMongoTableRaces(db,"races",sqlData,sqlColumns)
 	client.close()
 	
 def storeInMongoTableStatuses(mongoDB,tableName,sqlData,sqlColumns):
@@ -125,7 +126,7 @@ def storeInMongoTableCircuits(mongoDB,tableName,sqlData,sqlColumns):
 	columns = sqlColumns[tableName]
 	for sqlRow in sqlData[tableName]:
 		doc = {}
-		for col in range(1,len(columns)):
+		for col in range(0,len(columns)):
 			column = columns[col]
 			if (columns[col] == "lat"):
 				column = "latitude"
@@ -133,6 +134,10 @@ def storeInMongoTableCircuits(mongoDB,tableName,sqlData,sqlColumns):
 				column = "longitude"
 			if (columns[col] == "alt"):
 				column = "altitude"
+				if (sqlRow[columns[col]] != None):
+					data = int(sqlRow[columns[col]])
+					sqlRow[columns[col]] = data
+			if (columns[col] == "circuitId"):
 				if (sqlRow[columns[col]] != None):
 					data = int(sqlRow[columns[col]])
 					sqlRow[columns[col]] = data
@@ -168,6 +173,39 @@ def storeInMongoTableSeasons(mongoDB,tableName,sqlData,sqlColumns):
 				sqlRow[columns[col]] = str
 			doc[columns[col]] = sqlRow[columns[col]]
 		mongoDB.seasons.insert(doc)	
+		
+def storeInMongoTableRaces(mongoDB,tableName,sqlData,sqlColumns):
+	print("## STORING %s DATA TO MONGO DATABASE ##\n"%(tableName))
+	columns = sqlColumns[tableName]
+	for sqlRow in sqlData[tableName]:
+		doc = {}
+		for col in range(0,len(columns)):
+			column = columns[col]
+			data = sqlRow[columns[col]]
+			if (column == "round"):
+				if (data != None):
+					data = int(data)
+			if (column == "raceId"):
+				if (data != None):
+					data = int(data)
+			if (columns[col] == "year"):
+				column = "season"
+				data = mongoDB.seasons.find_one({columns[col]: sqlRow[columns[col]]})["_id"]
+			if (columns[col] == "circuitId"):
+				column = "circuit"
+				data = mongoDB.circuits.find_one({columns[col]: sqlRow[columns[col]]})
+			if (columns[col] == "date"):
+				data = sqlRow[columns[col]]
+				time = sqlRow["time"]
+				if (data != None and time != None):
+					data = datetime.datetime(data.year,data.month,data.day,time.seconds//3600,(time.seconds//60)%60,0)
+				elif (data != None and time == None):
+					data = datetime.datetime(data.year,data.month,data.day)
+			if (isinstance(sqlRow[columns[col]],basestring)):
+				data = sqlRow[columns[col]].decode('iso-8859-1').encode('utf8')
+			if (column != "time"):
+				doc[column] = data
+		mongoDB.races.insert(doc)
 			
 ########################################################################################
 #	PYTHON CONFIGURATION
