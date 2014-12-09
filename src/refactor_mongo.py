@@ -19,18 +19,21 @@ mongoPort = 27017
 
 def main():
 	print("\n## STARTING PROGRAM ##\n")
-	[client,db,newdb] = connectToMongo()
-	refactorRaces(db,newdb)
-	refactorSeasons(db,newdb)
-	client.close()
-
-def connectToMongo():
 	print("## CONNECTING TO MONGO DATABASE %s ON PORT %d ##\n"%(mongoHost,mongoPort))
 	client = pymongo.MongoClient(mongoHost, mongoPort)
 	client.drop_database('f1_db_new')
 	newdb = client.f1_db_new
 	db = client.f1_db
-	return client,db,newdb
+	refactorRaces(db,newdb)
+	refactorSeasons(db,newdb)
+	removeRaces(newdb)
+	db.connection.drop_database('f1_db')
+	client.copy_database('f1_db_new', 'f1_db')
+	assert set(client['f1_db_new'].collection_names()) == set(client['f1_db'].collection_names())
+	for collection in client['f1_db_new'].collection_names():
+		assert client['f1_db_new'][collection].count() == client['f1_db'][collection].count()
+	client.drop_database('f1_db_new')
+	client.close()
 	
 def refactorRaces(db,newdb):
 	print("## REFACTORING CONSTRUCTORS ##")
@@ -41,8 +44,10 @@ def refactorRaces(db,newdb):
 		for driver in drivers:
 			if("constructor" in driver.keys()):
 				cId = driver["constructor"]["constructorId"]
+				found = False
 				for constructor in constructors:
 					if(constructor["constructorId"] == cId):
+						found = True
 						if("drivers" in constructor.keys()):
 							cdrivers = constructor["drivers"]
 						else:
@@ -50,8 +55,11 @@ def refactorRaces(db,newdb):
 						cdrivers.append(driver)
 						constructor["drivers"] = cdrivers
 						break
-			#else:
-				#print("Error: No constructor for driver id %s"%driver["driverId"])
+				if (not found):
+					c = driver["constructor"]
+					cdrivers = [driver]
+					constructor["drivers"] = cdrivers
+					constructors.append(c)
 		race["constructors"] = constructors
 		def f(x): return not("constructor" in x.keys())
 		ndrivers = filter(f,drivers)
@@ -66,17 +74,27 @@ def refactorRaces(db,newdb):
 def refactorSeasons(db,newdb):
 	print("## REFACTORING SEASONS ##")
 	cursor = db.seasons.find()
-	raceCursor = newdb.races.find()
 	for season in cursor:
+		raceCursor = newdb.races.find()
 		year = season["year"]
-		print year
 		races = []
 		for race in raceCursor:
 			if (race["season"]["year"] == year):
 				races.append(race)
+		print("Year %d Races %d"%(year,len(races)))
+		if (len(races) == 0):
+			break
 		sortedRaces = sorted(races, key=lambda race: race["round"])
 		season["races"] = sortedRaces
 		newdb.seasons.insert(season)
+	cursor = newdb.seasons.find()
+	for season in cursor:
+		races = season["races"]
+		for race in races:
+			del race["season"]
+			
+def removeRaces(newdb):
+	newdb.drop_collection('races')
 		
 ########################################################################################
 #	PYTHON CONFIGURATION
