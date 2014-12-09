@@ -101,13 +101,15 @@ def storeInMongo(sqlData,sqlColumns):
 	storeInMongoTableDriversStandings(db,"driverStandings",sqlData,sqlColumns)
 	storeInMongoTableConstructorResults(db,"constructorResults",sqlData,sqlColumns)
 	storeInMongoTableConstructorStandings(db,"constructorStandings",sqlData,sqlColumns)
+	storeInMongoTableQualifying(db,"qualifying",sqlData,sqlColumns)
+	storeInMongoTablePitStops(db,"pitStops",sqlData,sqlColumns)
 	client.close()
 	
 def storeInMongoTableStatuses(mongoDB,tableName,sqlData,sqlColumns):
 	print("## STORING %s DATA TO MONGO DATABASE ##\n"%(tableName))
 	columns = sqlColumns[tableName]
 	for sqlRow in sqlData[tableName]:
-		mongoDB.statuses.insert({columns[1]:sqlRow[columns[1]]})
+		mongoDB.statuses.insert({columns[0]:sqlRow[columns[0]],columns[1]:sqlRow[columns[1]]})
 		
 def storeInMongoTableDrivers(mongoDB,tableName,sqlData,sqlColumns):
 	print("## STORING %s DATA TO MONGO DATABASE ##\n"%(tableName))
@@ -241,6 +243,8 @@ def storeInMongoTableResults(mongoDB, tableName, sqlData, sqlColumns):
 					column = "racePoints"
 				if (column == "rank"):
 					column = "fastestLapRank"
+				if (column == "positionOrder"):
+					column = "position"
 				driver[column] = data
 			if (column == "positionText" or column == "time" or column == "fastestLapTime"):
 				if (data != None):
@@ -258,10 +262,11 @@ def storeInMongoTableResults(mongoDB, tableName, sqlData, sqlColumns):
 				data = mongoDB.constructors.find_one({column: data})
 				column = "constructor"
 				driver[column] = data
-			if (column == "status"):
-				data = mongoDB.statuses.find_one({column: data})
+			if (column == "statusId"):
+				data = mongoDB.statuses.find_one({column: data})["status"]
 				column = "status"
 				driver[column] = data
+		driver["lapTimes"] = []
 		race["drivers"].append(driver)
 		mongoDB.races.update({'_id':race["_id"]}, {"$set": race}, upsert=False)
 	print
@@ -343,6 +348,88 @@ def storeInMongoTableConstructorStandings(mongoDB, tableName, sqlData, sqlColumn
 				if (data!= None):
 					constructor[column] = int(data)
 		mongoDB.races.update({"raceId": sqlRow[columns[1]]},{"$push" :{"constructors":constructor}})
+	print
+	
+def storeInMongoTableQualifying(mongoDB, tableName, sqlData, sqlColumns):
+	print("## STORING %s DATA TO MONGO DATABASE ##"%(tableName))
+	columns = sqlColumns[tableName]
+	totalLength = len(sqlData[tableName])
+	count = 0
+	print("Completed %d of %d"%(count,totalLength))
+	for sqlRow in sqlData[tableName]:
+		count = count + 1
+		if (count % 1000 == 0):
+			print("Completed %d of %d"%(count,totalLength))
+		driverRec = mongoDB.races.find_one({"raceId": sqlRow[columns[1]], "drivers.driverId": sqlRow[columns[2]]},{"_id" : 0, "drivers": {"$elemMatch" : {"driverId":sqlRow[columns[2]]}}})
+		if (driverRec == None):
+			driver = mongoDB.drivers.find_one({"driverId": sqlRow[columns[2]]})
+		else:
+			driver = driverRec["drivers"][0]
+		if (driver == None):
+			continue
+		mongoDB.races.update({"raceId": sqlRow[columns[1]]},{"$pull" :{"drivers":{"driverId":sqlRow[columns[2]]}}})
+		qualifying = {}
+		for col in range(0,len(columns)):
+			column = columns[col]
+			data = sqlRow[columns[col]]
+			if (column == "position"):
+				if (data!= None):
+					qualifying[column] = int(data)
+			if (column == "q1" or column == "q2" or column == "q3"):
+				if (data != None):
+					data = sqlRow[columns[col]].decode('iso-8859-1').encode('utf8')
+					qualifying[column] = data
+		driver["qualifying"] = qualifying
+		mongoDB.races.update({"raceId": sqlRow[columns[1]]},{"$push" :{"drivers":driver}})
+	print
+
+def storeInMongoTablePitStops(mongoDB, tableName, sqlData, sqlColumns):
+	print("## STORING %s DATA TO MONGO DATABASE ##"%(tableName))
+	columns = sqlColumns[tableName]
+	totalLength = len(sqlData[tableName])
+	count = 0
+	print("Completed %d of %d"%(count,totalLength))
+	for sqlRow in sqlData[tableName]:
+		count = count + 1
+		if (count % 1000 == 0):
+			print("Completed %d of %d"%(count,totalLength))
+		race = mongoDB.races.find_one({"raceId": sqlRow[columns[0]]})
+		driverRec = mongoDB.races.find_one({"raceId": sqlRow[columns[0]], "drivers.driverId": sqlRow[columns[1]]},{"_id" : 0, "drivers": {"$elemMatch" : {"driverId":sqlRow[columns[1]]}}})
+		if (driverRec == None):
+			driver = mongoDB.drivers.find_one({"driverId": sqlRow[columns[1]]})
+		else:
+			driver = driverRec["drivers"][0]
+		if (driver == None):
+			continue
+		mongoDB.races.update({"raceId": sqlRow[columns[0]]},{"$pull" :{"drivers":{"driverId":sqlRow[columns[1]]}}})
+		if ("pitStops" in driver.keys()):
+			pitStops = driver["pitStops"]
+		else:
+			pitStops = []
+		pitStop = {}
+		for col in range(0,len(columns)):
+			column = columns[col]
+			data = sqlRow[columns[col]]
+			if (column == "lap" or column == "stop"):
+				if (data!= None):
+					pitStop[column] = int(data)
+			if (column == "time"):
+				if (data != None):
+					data = datetime.datetime(race["date"].year,race["date"].month,race["date"].day,data.seconds//3600,(data.seconds//60)%60,data.seconds%60)
+				else:
+					data = datetime.datetime(data.year,data.month,data.day)
+				pitStop[column] = data
+			if (column == "milliseconds"):
+				if (data != None):
+					data = int(data)
+					pitStop[column] = data
+			if (column == "duration"):
+				if (data != None):
+					data = sqlRow[columns[col]].decode('iso-8859-1').encode('utf8')
+					pitStop[column] = data
+		pitStops.append(pitStop)
+		driver["pitStops"] = pitStops
+		mongoDB.races.update({"raceId": sqlRow[columns[0]]},{"$push" :{"drivers":driver}})
 	print
 		
 ########################################################################################
