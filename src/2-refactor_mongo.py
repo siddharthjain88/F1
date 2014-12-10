@@ -24,9 +24,12 @@ def main():
 	client.drop_database('f1_db_new')
 	newdb = client.f1_db_new
 	db = client.f1_db
+	
 	refactorRaces(db,newdb)
 	refactorSeasons(db,newdb)
-	removeRaces(newdb)
+	
+	print("## CLEANING DBS ##")
+	newdb.drop_collection('races')
 	db.connection.drop_database('f1_db')
 	client.copy_database('f1_db_new', 'f1_db')
 	assert set(client['f1_db_new'].collection_names()) == set(client['f1_db'].collection_names())
@@ -34,6 +37,10 @@ def main():
 		assert client['f1_db_new'][collection].count() == client['f1_db'][collection].count()
 	client.drop_database('f1_db_new')
 	client.close()
+
+########################################################################################
+#	MONGODB FUNCTIONS
+########################################################################################
 	
 def refactorRaces(db,newdb):
 	print("## REFACTORING CONSTRUCTORS ##")
@@ -92,9 +99,6 @@ def refactorSeasons(db,newdb):
 		races = season["races"]
 		for race in races:
 			del race["season"]
-			
-def removeRaces(newdb):
-	newdb.drop_collection('races')
 		
 ########################################################################################
 #	PYTHON CONFIGURATION
