@@ -5,7 +5,6 @@
 import MySQLdb
 import pymongo
 import datetime
-import pprint
 
 ########################################################################################
 #	CONSTANTS
@@ -74,24 +73,24 @@ def sqlGetLapTimes():
 def storeInMongo(lapTimes):
 	print("## CONNECTING TO MONGO DATABASE %s ON PORT %d ##\n"%(mongoHost,mongoPort))
 	client = pymongo.MongoClient(mongoHost, mongoPort)
-	client.drop_database('f1_db_new')
-	client.copy_database('f1_db', 'f1_db_new')
-	assert set(client['f1_db'].collection_names()) == set(client['f1_db_new'].collection_names())
-	for collection in client['f1_db'].collection_names():
-		assert client['f1_db'][collection].count() == client['f1_db_new'][collection].count()
 	db = client.f1_db
-	
-	
-	
-	
-	#print("## CLEANING DBS ##")
-	#newdb.drop_collection('races')
-	#db.connection.drop_database('f1_db')
-	#client.copy_database('f1_db_new', 'f1_db')
-	#assert set(client['f1_db_new'].collection_names()) == set(client['f1_db'].collection_names())
-	#for collection in client['f1_db_new'].collection_names():
-	#	assert client['f1_db_new'][collection].count() == client['f1_db'][collection].count()
-	#client.drop_database('f1_db_new')
+	print("## STORING LAPTIMES ##\n")
+	for raceId in lapTimes.keys():
+		print "Race " + str(raceId)
+		race = db.seasons.find_one({"races.raceId":raceId},{"races.$.raceId":1})["races"][0]
+		for constructor in race["constructors"]:
+			if ("drivers" in constructor.keys()):
+				for driver in constructor["drivers"]:
+					if (driver["driverId"] in lapTimes[raceId].keys()):
+						lapTime = lapTimes[raceId][driver["driverId"]]
+						driver["lapTimes"] = lapTime
+		db.seasons.update({"races.raceId":raceId},{"$set":{"races.$.constructors":race["constructors"]}},True,False)
+		if ("drivers" in race.keys()):
+			for driver in race["drivers"]:
+				if (driver["driverId"] in lapTimes[raceId].keys()):
+					lapTime = lapTimes[raceId][driver["driverId"]]
+					driver["lapTimes"] = lapTime
+			db.seasons.update({"races.raceId":raceId},{"$set":{"races.$.drivers":race["drivers"]}},True,False)
 	client.close()
 		
 ########################################################################################

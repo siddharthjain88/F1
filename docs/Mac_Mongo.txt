@@ -1,6 +1,6 @@
 Running the mongo server, In terminal type the following command:
 
-sudo mongod --dbpath ~/Downloads/F1/data
+sudo mongod --dbpath ~/Developer/F1/data
 
 Running the mongo client, In terminal type the following command:
 
