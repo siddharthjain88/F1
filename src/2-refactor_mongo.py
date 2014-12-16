@@ -92,13 +92,10 @@ def refactorSeasons(db,newdb):
 		if (len(races) == 0):
 			break
 		sortedRaces = sorted(races, key=lambda race: race["round"])
+		for race in sortedRaces:
+			del race["season"]
 		season["races"] = sortedRaces
 		newdb.seasons.insert(season)
-	cursor = newdb.seasons.find()
-	for season in cursor:
-		races = season["races"]
-		for race in races:
-			del race["season"]
 		
 ########################################################################################
 #	PYTHON CONFIGURATION
